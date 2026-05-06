@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models import query, insert, execute
 from services.auth_service import hash_password, verify_password, create_token, verify_token
+from config import REGISTRATION_CODE
 
 bp = Blueprint('auth', __name__)
 
@@ -19,11 +20,16 @@ def _get_current_user():
 
 @bp.route('/api/auth/register', methods=['POST'])
 def register():
-    """用户注册"""
+    """用户注册（需要邀请码）"""
     data = request.get_json()
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
+    code = data.get('code', '').strip()
 
+    if not REGISTRATION_CODE:
+        return jsonify({"success": False, "error": "暂不开放注册"}), 403
+    if code != REGISTRATION_CODE:
+        return jsonify({"success": False, "error": "邀请码错误"}), 403
     if not username or len(username) < 2:
         return jsonify({"success": False, "error": "用户名至少 2 个字符"}), 400
     if not password or len(password) < 4:

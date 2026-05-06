@@ -22,3 +22,4 @@ MAX_CONTENT_LENGTH = 8 * 1024 * 1024  # 8MB
 
 # Flask 配置
 SECRET_KEY = os.getenv('SECRET_KEY')  # 必须在 .env 中设置，否则启动报错
+REGISTRATION_CODE = os.getenv('REGISTRATION_CODE', '')  # 空字符串则禁止注册

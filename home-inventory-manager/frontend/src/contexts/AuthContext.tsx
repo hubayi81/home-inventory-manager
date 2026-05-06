@@ -11,7 +11,7 @@ interface AuthState {
   user: User | null
   loading: boolean
   login: (username: string, password: string) => Promise<string | null>
-  register: (username: string, password: string) => Promise<string | null>
+  register: (username: string, password: string, code: string) => Promise<string | null>
   logout: () => void
 }
 
@@ -68,9 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const register = useCallback(async (username: string, password: string): Promise<string | null> => {
+  const register = useCallback(async (username: string, password: string, code: string): Promise<string | null> => {
     try {
-      const res = await api.post('/auth/register', { username, password })
+      const res = await api.post('/auth/register', { username, password, code })
       if (res.data.success) {
         const u = res.data.data
         localStorage.setItem('user', JSON.stringify(u))

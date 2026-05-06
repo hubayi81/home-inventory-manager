@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Card, Form, Input, Button, Typography, Tabs, App } from 'antd'
-import { UserOutlined, LockOutlined, HomeOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined, HomeOutlined, KeyOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -13,11 +13,11 @@ export default function Login() {
   const navigate = useNavigate()
   const { message } = App.useApp()
 
-  const handleSubmit = async (values: { username: string; password: string }) => {
+  const handleSubmit = async (values: { username: string; password: string; code?: string }) => {
     setLoading(true)
     const error = activeTab === 'login'
       ? await login(values.username, values.password)
-      : await register(values.username, values.password)
+      : await register(values.username, values.password, values.code || '')
     setLoading(false)
 
     if (error) {
@@ -63,6 +63,11 @@ export default function Login() {
           <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }, { min: 4, message: '密码至少4位' }]}>
             <Input.Password prefix={<LockOutlined style={{ color: '#ccc' }} />} placeholder="密码" />
           </Form.Item>
+          {activeTab === 'register' && (
+            <Form.Item name="code" rules={[{ required: true, message: '请输入邀请码' }]}>
+              <Input prefix={<KeyOutlined style={{ color: '#ccc' }} />} placeholder="邀请码（由管理员提供）" />
+            </Form.Item>
+          )}
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} block
               style={{
