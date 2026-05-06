@@ -7,6 +7,7 @@ conversation-*.txt
 
 # 环境配置（含数据库密码、API Key 等敏感信息）
 home-inventory-manager/backend/.env
+deploy_update.py
 
 # 上传的图片
 home-inventory-manager/backend/uploads/*
