@@ -1,0 +1,30 @@
+# 部署打包产物
+*.tar.gz
+
+# Claude Code 内部文件
+.claude/
+conversation-*.txt
+
+# 环境配置（含数据库密码、API Key 等敏感信息）
+home-inventory-manager/backend/.env
+
+# 上传的图片
+home-inventory-manager/backend/uploads/*
+!home-inventory-manager/backend/uploads/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+home-inventory-manager/backend/venv/
+home-inventory-manager/backend/.venv/
+
+# Node
+node_modules/
+home-inventory-manager/frontend/build/
+*.tsbuildinfo
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,215 @@
+# AI + 家庭库存管理系统 约束文档
+
+> 本约束文档用于指导 Claude 生成一个完整可运行的家庭库存管理 web 应用。
+> 请严格按照以下规范进行实现，不可偏离。
+
+## 1. 项目概述
+一个基于 Web 的家庭库存管理系统，用户可以：
+- 拍照或手动输入物品信息，系统借助 AI 识别照片中的物品名称
+- 按分类管理库存
+- 获得物品过期提醒
+- 查看全部库存、缺少物品清单
+- 自定义设置（提醒天数、分类管理等）
+
+## 2. 技术栈（强制）
+- 后端：Python 3.10 + Flask
+- 数据库：MySQL 8.0（通过 PyMySQL 或 mysql-connector-python 连接）
+- 前端：单页应用，使用 React 18 + TypeScript，通过 REST API 与后端通信
+- AI 集成：调用 OpenAI GPT-4 Vision 或模拟 AI 识别（若无 API key 则使用模拟函数）
+- 图片上传：前端使用 FormData 上传至后端 `/api/upload`，后端保存到 `uploads/` 目录
+
+## 3. 功能需求详细说明
+
+### 3.1 物品录入
+- 提供两种录入方式：
+  1. 拍照录入：上传照片，系统调用 AI 识别图片中的物品名称，返回建议名称供用户确认，然后用户补充分类、数量、过期日期、备注等信息。
+  2. 手动录入：直接填写物品名称、选择分类、数量、过期日期（可选）、备注（可选）。
+- 录入时，如果输入的物品名称在库存中已存在（相同名称且未标记为“已用完”），则提示用户是否更新数量或作为新物品加入。
+
+### 3.2 分类存放
+- 系统预置分类：食品、饮料、日用品、药品、零食、其他。
+- 用户可在“设置”中增加、删除、重命名分类。
+- 每个物品必须属于一个分类。
+
+### 3.3 过期提醒
+- 物品录入时可设置过期日期（非必填）。
+- 系统根据设置中的“提醒天数（默认7天）”筛选出即将过期的物品（当前日期 + N 天内过期）。
+- 在仪表板或独立页面高亮显示这些物品，支持忽略某次提醒。
+
+### 3.4 全部库存
+- 以列表或卡片形式展示所有库存物品。
+- 支持：
+  - 按分类筛选
+  - 按物品名称模糊搜索
+  - 排序：按添加时间、过期日期、名称
+- 每个物品可以编辑、删除、标记为“缺货/已用完”（移入缺少物品清单）。
+
+### 3.5 缺少物品清单（购物清单）
+- 展示所有被标记为“缺少”的物品，以及用户主动添加的购物清单项目。
+- 用户可在此清单中：
+  - 添加新的缺少物品（纯文本）
+  - 将物品恢复为库存（重新采购后）
+  - 删除条目
+- 缺少物品可关联已有库存物品（比如“酱油”用完了，自动生成缺少记录）。
+
+### 3.6 设置页面
+- 提醒天数：整数，默认 7
+- 分类管理：增删改分类名称
+- 存储管理：查看上传图片所占空间（简单显示数量即可）
+- 可选：数据导出（留接口，可不实现前端）
+
+## 4. 数据库设计（MySQL）
+数据库名称：family_inventory
+字符集：utf8mb4
+
+创建以下表：
+
+### 4.1 categories
+| 字段名       | 类型         | 说明                     |
+|--------------|--------------|--------------------------|
+| id           | INT AUTO_INCREMENT PRIMARY KEY | 分类ID    |
+| name         | VARCHAR(50)  | 分类名称（唯一）         |
+| created_at   | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+
+预插入默认分类：食品，饮料，日用品，药品，零食，其他
+
+### 4.2 items
+| 字段名       | 类型         | 说明                                 |
+|--------------|--------------|--------------------------------------|
+| id           | INT AUTO_INCREMENT PRIMARY KEY | 物品ID        |
+| name         | VARCHAR(100) | 物品名称                             |
+| category_id  | INT          | 外键关联 categories.id               |
+| quantity     | INT DEFAULT 1 | 数量                                |
+| expiry_date  | DATE NULL    | 过期日期（可空）                     |
+| notes        | TEXT         | 备注                                 |
+| image_path   | VARCHAR(255) NULL | 上传的图片路径                   |
+| status       | ENUM('in_stock','out_of_stock','missing') DEFAULT 'in_stock' | 库存状态 |
+| created_at   | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | 创建时间         |
+| updated_at   | TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+
+- category_id 外键约束：FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+
+### 4.3 shopping_list
+| 字段名       | 类型         | 说明                                     |
+|--------------|--------------|------------------------------------------|
+| id           | INT AUTO_INCREMENT PRIMARY KEY | 清单项ID    |
+| item_name    | VARCHAR(100) | 物品名称                                 |
+| item_id      | INT NULL     | 关联 items.id（可选，用于从库存标记缺少） |
+| quantity     | INT DEFAULT 1 | 需要数量                                |
+| purchased    | BOOLEAN DEFAULT FALSE | 是否已采购                         |
+| created_at   | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | 创建时间     |
+
+### 4.4 settings
+| 字段名       | 类型         | 说明                 |
+|--------------|--------------|----------------------|
+| id           | INT AUTO_INCREMENT PRIMARY KEY | 设置ID    |
+| key          | VARCHAR(50)  | 设置键（唯一）       |
+| value        | TEXT         | 设置值               |
+
+默认插入：key='reminder_days', value='7'
+
+## 5. REST API 端点设计
+所有 API 返回 JSON。基础路径 /api
+
+### 5.1 分类相关
+- GET /api/categories - 获取所有分类
+- POST /api/categories - 新增分类 { "name": "xxx" }
+- PUT /api/categories/<id> - 更新分类名 { "name": "xxx" }
+- DELETE /api/categories/<id> - 删除分类（如果分类下有物品则禁止删除，返回错误）
+
+### 5.2 物品相关
+- GET /api/items - 获取所有物品。支持查询参数：
+  - ?search=关键词 - 模糊搜索名称
+  - ?category_id=id - 按分类筛选
+  - ?status=in_stock|out_of_stock|missing - 按状态筛选
+  - ?expiring_soon=true - 仅返回按照设置天数即将过期的物品
+  - ?sort_by=name|expiry_date|created_at - 排序字段，默认 created_at desc
+- POST /api/items - 手动创建物品
+  { "name": "酱油", "category_id": 1, "quantity": 2, "expiry_date": "2025-12-01", "notes": "生抽" }
+- PUT /api/items/<id> - 更新物品
+- DELETE /api/items/<id> - 删除物品
+- PATCH /api/items/<id>/status - 修改状态 { "status": "missing" }（标记缺少时自动添加到 shopping_list）
+
+### 5.3 图片上传与AI识别
+- POST /api/upload - 上传图片（multipart/form-data，字段名 file）
+  - 保存图片到 uploads/ 文件夹，生成唯一文件名
+  - 调用 AI 识别服务（见第7节）
+  - 返回识别出的物品名称列表：{ "suggestions": ["牛奶", "鸡蛋"] }
+  - 若AI不可用，返回模拟数据 { "suggestions": ["未识别物品"] }
+- POST /api/items/from-photo - 确认照片识别结果并创建物品，请求体：
+  { "image_path": "uploads/xxxx.jpg", "name": "牛奶", "category_id": 2, "quantity": 1, "expiry_date": "2025-05-01", "notes": "" }
+
+### 5.4 购物清单相关
+- GET /api/shopping-list - 获取所有购物清单项（包含 purchased 为 false 的）
+- POST /api/shopping-list - 添加 { "item_name": "xxx", "quantity": 1, "item_id": null }
+- PUT /api/shopping-list/<id> - 修改清单项（标记采购或修改数量）
+- DELETE /api/shopping-list/<id> - 删除
+
+### 5.5 设置
+- GET /api/settings - 返回所有设置 { "reminder_days": "7" }
+- PUT /api/settings - 更新设置 { "reminder_days": "10" }（支持部分更新）
+
+### 5.6 统计摘要（仪表板用）
+- GET /api/stats - 返回：
+  { "total_items": 50, "expiring_soon": 3, "missing_items": 5, "category_distribution": [{"name":"食品","count":20}, ...] }
+
+## 6. 前端结构与交互要求
+使用 Create React App 初始化项目（TypeScript 模板）。
+
+### 6.1 页面路由
+- / 仪表板（概览卡片 + 即将过期物品列表）
+- /items 全部库存（表格/卡片 + 搜索/过滤）
+- /add 添加物品（手动 + 拍照上传）
+- /shopping-list 缺少物品清单
+- /settings 设置页
+
+使用 React Router v6。
+
+### 6.2 UI 组件要求
+- 全局布局组件：侧边栏/顶部导航，包含菜单项和库存统计摘要。
+- 拍照录入：使用 <input type="file" accept="image/*" capture="environment"> 支持移动端拍照。上传后显示 AI 建议列表，用户选择或输入自定义名称，再填写剩余字段。
+- 物品列表：表格形式，可点击行展开详情/编辑。状态标签颜色：in_stock（绿）、out_of_stock（黄）、missing（红）。
+- 即将过期物品使用红色背景高亮或 badges 标识。
+- 购物清单：复选样式，勾选即调用接口标记 purchased。
+- 使用现代 UI 框架如 Ant Design 或 Material UI，确保良好的交互体验。
+
+### 6.3 状态管理
+使用 React Context 管理全局状态（如分类列表、提醒天数），避免过多 API 重复请求。也可以使用 React Query 进行服务端状态管理。
+
+## 7. AI 识别功能约束
+- 如果环境变量 OPENAI_API_KEY 已设置，则调用 OpenAI GPT-4 Vision API 识别上传图片中的物品，prompt 要求返回图片中可见的家庭物品名称列表（JSON数组）。
+- 如果未设置，则使用模拟函数：随机返回 ["物品1", "物品2"]。
+- 识别结果中的物品名称自动过滤掉明显非物品的描述（如背景、手等）。
+- 无论如何，AI 识别失败时返回 [] 并且在 /api/upload 响应中注明 suggestions: []。
+
+## 8. 项目结构约束
+项目根目录 /home-inventory-manager，包含：
+- backend/
+  - app.py (Flask 启动文件)
+  - config.py (数据库连接配置，使用环境变量)
+  - models.py (数据访问层，使用原生 SQL 或 SQLAlchemy)
+  - routes/ (按资源拆分路由模块)
+  - services/ (AI 服务、文件上传等)
+  - uploads/ (图片存储)
+- frontend/ (React 项目)
+  - 使用 create-react-app 创建，文件结构默认即可
+- database/
+  - init.sql (包含完整的建表及初始数据 SQL)
+- .env.example (需要的环境变量说明)
+- README.md (项目说明、启动步骤)
+
+## 9. 非功能约束
+- 安全性：上传文件仅允许图片格式（jpg, png, jpeg），后端需校验。
+- 错误处理：所有 API 返回统一格式 { "success": true/false, "data": ..., "error": "msg" }。
+- 跨域：后端必须开启 CORS 支持，允许前端开发服务器（localhost:3000）访问。
+- 可运行性：代码必须完整，可以直接用 docker-compose 或本地分别启动后端和前端。
+- 注释：关键逻辑需要中文注释。
+
+## 10. 示例启动步骤（Codex 可忽略，仅供参考）
+1. 安装 MySQL，创建数据库并执行 database/init.sql
+2. 后端起：cd backend && pip install -r requirements.txt && python app.py
+3. 前端起：cd frontend && npm install && npm start
+
+---
+
+请 Codex 严格按照以上约束生成完整的项目代码。
