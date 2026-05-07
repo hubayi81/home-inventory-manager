@@ -11,6 +11,7 @@ import dayjs from 'dayjs'
 import api from '../api'
 import { useAppContext } from '../contexts/AppContext'
 import VoiceInput from '../components/VoiceInput'
+import BarcodeScanner, { rememberBarcodeName } from '../components/BarcodeScanner'
 
 const { Title, Text } = Typography
 const { Dragger } = Upload
@@ -27,6 +28,12 @@ export default function AddItem() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [duplicate, setDuplicate] = useState<any>(null)
+  const [barcode, setBarcode] = useState('')
+
+  const handleBarcode = (code: string, hint: string) => {
+    setBarcode(code)
+    form.setFieldsValue({ name: hint })
+  }
 
   const handleUpload = async (file: RcFile) => {
     setUploading(true)
@@ -63,7 +70,7 @@ export default function AddItem() {
         expiry_date: values.expiry_date ? values.expiry_date.format('YYYY-MM-DD') : null,
       })
       if (res.data.duplicate) { setDuplicate(res.data); return }
-      if (res.data.success) { refresh(); form.resetFields(); navigate('/items') }
+      if (res.data.success) { rememberBarcodeName(barcode, values.name); refresh(); form.resetFields(); setBarcode(''); navigate('/items') }
     } catch (e) { console.error(e) }
   }
 
@@ -73,8 +80,9 @@ export default function AddItem() {
         ...values, image_path: imagePath,
         expiry_date: values.expiry_date ? values.expiry_date.format('YYYY-MM-DD') : null,
       })
+      rememberBarcodeName(barcode, values.name)
       refresh(); form.resetFields()
-      setSuggestions([]); setImagePath(''); setSelectedSuggestion('')
+      setSuggestions([]); setImagePath(''); setSelectedSuggestion(''); setBarcode('')
       navigate('/items')
     } catch (e) { console.error(e) }
   }
@@ -136,9 +144,12 @@ export default function AddItem() {
                   </div>
                   <Form form={form} layout="vertical" onFinish={handlePhotoSubmit} style={{ marginTop: 16 }}>
                     <Form.Item name="name" label="物品名称" rules={[{ required: true }]}>
-                      <Input placeholder="选择建议或手动输入" style={{ borderRadius: 12 }}
-                        suffix={<VoiceInput onResult={(text) => form.setFieldsValue({ name: text })} />}
-                      />
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Input placeholder="选择建议或手动输入" style={{ borderRadius: '12px 0 0 12px' }}
+                          suffix={<VoiceInput onResult={(text) => form.setFieldsValue({ name: text })} />}
+                        />
+                        <BarcodeScanner onDetected={handleBarcode} />
+                      </Space.Compact>
                     </Form.Item>
                     <Form.Item name="category_id" label="分类" rules={[{ required: true }]}>
                       <Select placeholder="选择分类" style={{ borderRadius: 12 }}
@@ -173,9 +184,12 @@ export default function AddItem() {
               )}
               <Form form={form} layout="vertical" onFinish={handleManualSubmit}>
                 <Form.Item name="name" label="物品名称" rules={[{ required: true, message: '请输入物品名称' }]}>
-                  <Input placeholder="如：酱油、牛奶" style={{ borderRadius: 12 }}
-                    suffix={<VoiceInput onResult={(text) => form.setFieldsValue({ name: text })} />}
-                  />
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input placeholder="如：酱油、牛奶" style={{ borderRadius: '12px 0 0 12px' }}
+                      suffix={<VoiceInput onResult={(text) => form.setFieldsValue({ name: text })} />}
+                    />
+                    <BarcodeScanner onDetected={handleBarcode} />
+                  </Space.Compact>
                 </Form.Item>
                 <Form.Item name="category_id" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
                   <Select placeholder="选择分类" style={{ borderRadius: 12 }}
