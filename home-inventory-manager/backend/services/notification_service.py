@@ -101,40 +101,38 @@ def check_and_notify_expiring():
         days_row = query("SELECT value FROM settings WHERE `key` = 'reminder_days'")
         days = int(days_row[0]['value']) if days_row else 7
 
-        # 查询即将过期的物品
+        # 查询即将过期的物品（家庭共享库存，不区分用户）
         expiring = query(
-            "SELECT i.name, i.expiry_date, u.id AS user_id "
-            "FROM items i, (SELECT DISTINCT user_id FROM notification_subscriptions) u "
-            "WHERE i.expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL %s DAY) "
-            "AND i.status = 'in_stock'",
+            "SELECT name, expiry_date FROM items "
+            "WHERE expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL %s DAY) "
+            "AND status = 'in_stock' "
+            "ORDER BY expiry_date ASC",
             (days,)
         )
 
         if not expiring:
-            print("No expiring items found.")
+            print("[Scheduler] 未发现即将过期物品")
             return
 
-        # 按用户分组发送通知
-        user_items = {}
-        for item in expiring:
-            uid = item['user_id']
-            if uid not in user_items:
-                user_items[uid] = []
-            user_items[uid].append(item['name'])
-
+        # 向所有订阅用户发送通知
         subscriptions = get_subscriptions()
-        for sub in subscriptions:
-            uid = sub['user_id']
-            if uid in user_items:
-                count = len(user_items[uid])
-                item_names = '、'.join(user_items[uid][:3])
-                send_push_notification(
-                    sub['subscription_json'],
-                    title=f'{count} 件物品即将过期',
-                    body=f'{item_names}{" 等" if count > 3 else ""}即将过期，记得早点使用哦~',
-                    url='/'
-                )
+        if not subscriptions:
+            print("[Scheduler] 无推送订阅用户")
+            return
 
-        print(f"Sent push notifications to {len(subscriptions)} subscribers.")
+        count = len(expiring)
+        item_names = '、'.join([item['name'] for item in expiring[:3]])
+        sent = 0
+        for sub in subscriptions:
+            ok = send_push_notification(
+                sub['subscription_json'],
+                title=f'{count} 件物品即将过期',
+                body=f'{item_names}{" 等" if count > 3 else ""}即将过期，记得早点使用哦~',
+                url='/'
+            )
+            if ok:
+                sent += 1
+
+        print(f"[Scheduler] 已向 {sent}/{len(subscriptions)} 位用户发送过期提醒")
     except Exception as e:
         print(f"Check expiry error: {e}")
