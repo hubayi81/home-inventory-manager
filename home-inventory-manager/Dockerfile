@@ -19,4 +19,7 @@ RUN mkdir -p uploads
 
 EXPOSE 5099
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5099", "--workers", "2", "--timeout", "120", "app:application"]
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]

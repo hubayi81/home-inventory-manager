@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
-from services.notification_service import save_subscription, remove_subscription, get_or_create_vapid_keys
+from services.notification_service import save_subscription, remove_subscription, get_or_create_vapid_keys, check_and_notify_expiring
+from middleware import login_required
 
 bp = Blueprint('notifications', __name__)
 
@@ -37,3 +38,14 @@ def unsubscribe():
 
     remove_subscription(user_id)
     return jsonify({"success": True, "data": None})
+
+
+@bp.route('/api/notifications/trigger-expiry-check', methods=['POST'])
+@login_required
+def trigger_expiry_check():
+    """手动触发过期检查（需要登录）"""
+    try:
+        check_and_notify_expiring()
+        return jsonify({"success": True, "data": "检查完成"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
